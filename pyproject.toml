@@ -8,7 +8,7 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.10"
-llama-index = "^0.12"
+llama-index = "^0.13"
 openai = "^1.0"
 
 [build-system]
