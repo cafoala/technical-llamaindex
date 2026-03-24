@@ -1,0 +1,10 @@
+#!/bin/bash
+# postBuild script for Binder
+# Downloads the Paul Graham 'What I Worked On' essay into data/
+
+mkdir -p data
+
+wget -q -O data/paul_graham_essay.txt \
+  https://raw.githubusercontent.com/run-llama/llama_index/main/docs/docs/examples/data/paul_graham/paul_graham_essay.txt
+
+echo "Paul Graham essay downloaded to data/paul_graham_essay.txt"
