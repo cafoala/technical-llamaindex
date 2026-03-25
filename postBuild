@@ -4,7 +4,25 @@
 
 mkdir -p data
 
-wget -q -O data/paul_graham_essay.txt \
-  https://raw.githubusercontent.com/run-llama/llama_index/main/docs/docs/examples/data/paul_graham/paul_graham_essay.txt
+python3 - <<'PY'
+import html
+import re
+import urllib.request
+
+url = "https://paulgraham.com/worked.html"
+target = "data/paul_graham_essay.txt"
+
+with urllib.request.urlopen(url) as response:
+    page_html = response.read().decode("utf-8", errors="ignore")
+
+text = re.sub(r"<script[\\s\\S]*?</script>", " ", page_html, flags=re.IGNORECASE)
+text = re.sub(r"<style[\\s\\S]*?</style>", " ", text, flags=re.IGNORECASE)
+text = re.sub(r"<[^>]+>", " ", text)
+text = html.unescape(text)
+text = re.sub(r"\\s+", " ", text).strip()
+
+with open(target, "w", encoding="utf-8") as f:
+    f.write(text)
+PY
 
 echo "Paul Graham essay downloaded to data/paul_graham_essay.txt"
