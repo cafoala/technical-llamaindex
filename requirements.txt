@@ -8,3 +8,5 @@ jedi>=0.16.0
 python-dotenv>=1.0.0
 ipywidgets>=8.0.0
 nest_asyncio>=1.6.0
+jupyter>=1.1.0
+notebook>=7.0.0
