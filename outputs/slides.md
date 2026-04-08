@@ -35,14 +35,18 @@ April 2026
 
 ---
 
-# RAG vs. "Long Context"
+# RAG vs Long Context vs Fine-Tuning
 
-Many models now have massive context windows (128k+ tokens). Why not just paste the whole document?
+There are three common options for domain performance: long context, fine-tuning, and RAG.
 
-1. **Cost:** Feeding 100k tokens into every prompt is 100x more expensive than retrieving 2 relevant chunks.
-2. **Speed:** Large contexts slow down "Time to First Token." RAG is snappy.
-3. **Accuracy:** Models often suffer from **"Lost in the Middle"**—they ignore facts buried in the center of a massive prompt.
-4. **Model Choice:** RAG allows a "small" model (like Llama 3.2 3B) to outperform a "giant" model by giving it exactly what it needs.
+1. **Long Context:** Valid, but often slower and more expensive per query, with "Lost in the Middle" risks.
+2. **Fine-Tuning:** Also valid, but usually highest effort and cost (data curation, training runs, eval, versioning, retraining).
+3. **RAG:** Usually best first step for changing factual content: retrieve top evidence at query time and ground the answer.
+
+**Rule of thumb**
+- Need up-to-date factual grounding: start with **RAG**.
+- Need stable style/behavior changes: consider **Fine-Tuning**.
+- Need one-off broad context: **Long Context** can be enough.
 
 ---
 
