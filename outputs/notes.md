@@ -25,19 +25,24 @@ This matters because fluent output is not the same as reliable output.
 
 So if context matters so much, why not put the entire document into one huge prompt every time?
 
-### Slide 3: RAG vs Long Context
-Long-context prompting can work, but it has tradeoffs.
-It is slower, often more expensive, and quality can degrade when key details are buried in a lot of text.
+### Slide 3: RAG vs Long Context vs Fine-Tuning
+There are three common ways to improve domain performance: long context, fine-tuning, and RAG.
 
-You can think of RAG as targeted context delivery.
-Instead of sending everything, we send the most relevant passages for this specific query.
+Long-context prompting can work, but it is often slower, more expensive per query, and can miss details when critical facts are buried in large prompts.
 
-That gives us three practical benefits:
-1. Lower token usage and better latency.
-2. More stable answers for smaller local models.
-3. A clear tuning surface: chunking, retrieval depth, reranking, and prompts.
+Fine-tuning is absolutely a valid option, but it is usually the highest-friction path.
+It requires curated training data, training runs, evaluation loops, versioning, and retraining when facts change.
+It can improve style, behavior, or task performance, but it is not the easiest way to keep up with frequently changing knowledge.
 
-Here is the full pipeline we will implement.
+RAG is usually the practical first step for knowledge-heavy use cases.
+Instead of retraining the model, we retrieve the best evidence at query time and ground the answer in those passages.
+
+A simple rule of thumb:
+1. Need up-to-date factual grounding: start with RAG.
+2. Need fixed behavior/style changes: consider fine-tuning.
+3. Need very broad context in a one-off case: long context can be fine.
+
+Here is the full RAG pipeline we will implement.
 
 ### Slide 4: The 5 Steps Of RAG (Technical View)
 Step 1, Load: ingest raw source files into document objects.
@@ -106,20 +111,6 @@ When that happens, rerun setup and data download before debugging later sections
 
 Once the basic loop works, we can improve answer quality by improving evidence quality.
 
-### Slide 9: Reranking Deep Dive
-Nearest-neighbor retrieval gives us a candidate set.
-Some chunks will be relevant, some only loosely related.
-
-Reranking is a second-stage relevance pass over those candidates.
-In this notebook we use `LLMRerank`, so yes, the reranker is LLM-based.
-
-Mechanically, the flow is:
-1. Retrieve top-k candidates by vector similarity (`similarity_top_k`).
-2. Ask the reranker to score or choose the strongest chunks.
-3. Keep only top-n (`top_n`) before final synthesis.
-
-So reranking trades extra compute for better evidence quality.
-In practice, that often improves factual precision more than swapping to a bigger base model.
 
 ### Slide 10: Routing Deep Dive
 Not every question wants the same tool.
@@ -136,18 +127,6 @@ Mechanically, the flow is:
 
 This is a lightweight agent pattern: model-mediated tool choice with explicit policy in tool descriptions.
 
-### Slide 11: Should Embeddings Stay One Slide? Should 5 Steps Be Split?
-For this audience, I recommend keeping one dedicated embeddings slide.
-Embeddings are the core abstraction that makes retrieval work, and people usually need one focused minute on that idea.
-
-For the 5 steps, I would not split into five separate slides unless the audience is highly technical and you have extra time.
-
-A good compromise is:
-1. Keep the single 5-step overview slide.
-2. Add one extra technical slide that shows the runtime flow:
-load/chunk/index once, then retrieve/rerank/generate per query.
-
-That gives depth without slowing pacing.
 
 ### Slide 12: Limitations, Summary, And Next Steps
 RAG is not magic.
@@ -208,6 +187,9 @@ No source file means no index, and no index means no RAG.
 ## Section 3: Intro To RAG
 This section is the core learning loop.
 
+At this point, we have already seen why we are choosing RAG first for this workshop.
+Fine-tuning is a real option, but for frequently changing factual content it is usually more effort and cost than retrieval-based grounding.
+
 We first configure LlamaIndex settings:
 1. `Settings.llm = Ollama(...)` sets the generation model.
 2. `Settings.embed_model = OllamaEmbedding(...)` sets semantic encoding.
@@ -226,6 +208,21 @@ We ask the same question again with `vector_query_engine.query(prompt)` and comp
 Then we inspect `rag_response.source_nodes` so we can verify whether the answer is supported by retrieved evidence.
 
 The key point here is trust through inspectability.
+
+### Slide 9: Reranking Deep Dive
+Nearest-neighbor retrieval gives us a candidate set.
+Some chunks will be relevant, some only loosely related.
+
+Reranking is a second-stage relevance pass over those candidates.
+In this notebook we use `LLMRerank`, so yes, the reranker is LLM-based.
+
+Mechanically, the flow is:
+1. Retrieve top-k candidates by vector similarity (`similarity_top_k`).
+2. Ask the reranker to score or choose the strongest chunks.
+3. Keep only top-n (`top_n`) before final synthesis.
+
+So reranking trades extra compute for better evidence quality.
+In practice, that often improves factual precision more than swapping to a bigger base model.
 
 ## Section 4: Advanced Retrieval (Reranking)
 Now we improve retrieval quality.
