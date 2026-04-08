@@ -56,12 +56,6 @@ def parse_args() -> argparse.Namespace:
         help="Ollama model used for generation.",
     )
     parser.add_argument(
-        "--num-predict",
-        type=int,
-        default=128,
-        help="Maximum generated tokens per answer (lower is usually faster).",
-    )
-    parser.add_argument(
         "--embed-model",
         default="nomic-embed-text",
         help="Ollama embedding model.",
@@ -77,12 +71,6 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=2,
         help="Number of chunks kept after reranking.",
-    )
-    parser.add_argument(
-        "--reranking",
-        choices=["on", "off"],
-        default="off",
-        help="Enable or disable LLM reranking. Disable for lower latency.",
     )
     parser.add_argument(
         "--rerank-batch-size",
@@ -111,8 +99,8 @@ def parse_args() -> argparse.Namespace:
         "--fast",
         action="store_true",
         help=(
-            "Apply faster settings: routing off, reranking off, "
-            "similarity_top_k<=4, rerank_top_n<=2, rerank_batch_size>=8."
+            "Apply faster settings: similarity_top_k<=4, rerank_top_n<=2, "
+            "rerank_batch_size>=8, heuristic routing."
         ),
     )
     parser.add_argument(
@@ -123,17 +111,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def configure_models(llm_model: str, embed_model: str, num_predict: int) -> None:
+def configure_models(llm_model: str, embed_model: str) -> None:
     # Keep notebook-like runs readable by suppressing verbose HTTP logs.
     for noisy_logger in ("httpx", "httpcore"):
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
-    # Limit generated tokens to keep interactive answers snappy.
-    Settings.llm = Ollama(
-        model=llm_model,
-        request_timeout=180.0,
-        additional_kwargs={"num_predict": num_predict},
-    )
+    Settings.llm = Ollama(model=llm_model, request_timeout=180.0)
     Settings.embed_model = OllamaEmbedding(model_name=embed_model)
     Settings.chunk_size = 512
     Settings.chunk_overlap = 50
@@ -143,12 +126,9 @@ def apply_fast_preset(args: argparse.Namespace) -> None:
     if not args.fast:
         return
 
-    args.routing = "off"
-    args.reranking = "off"
-    args.similarity_top_k = min(args.similarity_top_k, 2)
+    args.similarity_top_k = min(args.similarity_top_k, 4)
     args.rerank_top_n = min(args.rerank_top_n, 2)
     args.rerank_batch_size = max(args.rerank_batch_size, 8)
-    args.num_predict = min(args.num_predict, 96)
     if args.routing == "on":
         args.router_selector = "heuristic"
 
@@ -203,13 +183,9 @@ def load_or_build_index(
 def build_fact_engine(
     index,
     similarity_top_k: int,
-    use_reranking: bool,
     rerank_top_n: int,
     rerank_batch_size: int,
 ):
-    if not use_reranking:
-        return index.as_query_engine(similarity_top_k=similarity_top_k)
-
     reranker = LLMRerank(choice_batch_size=rerank_batch_size, top_n=rerank_top_n)
     return index.as_query_engine(
         similarity_top_k=similarity_top_k,
@@ -304,7 +280,7 @@ def main() -> int:
     docs_dir = Path(args.docs_dir)
     persist_dir = Path(args.persist_dir)
 
-    configure_models(args.llm_model, args.embed_model, args.num_predict)
+    configure_models(args.llm_model, args.embed_model)
 
     source_files = discover_source_files(docs_dir)
     include_documents = args.routing == "on" and args.router_selector == "llm"
@@ -319,7 +295,6 @@ def main() -> int:
     fact_engine = build_fact_engine(
         index=index,
         similarity_top_k=args.similarity_top_k,
-        use_reranking=args.reranking == "on",
         rerank_top_n=args.rerank_top_n,
         rerank_batch_size=args.rerank_batch_size,
     )
@@ -345,18 +320,17 @@ def main() -> int:
 
     print(status)
     print(f"Loaded {len(source_files)} source file(s) from {docs_dir}")
-    routing_mode = args.routing if args.routing == "off" else f"{args.routing}/{args.router_selector}"
     print(
         "Ready. Ask a question, or type 'exit' / 'quit' to stop. "
-        f"(routing={routing_mode}, reranking={args.reranking}, "
+        f"(routing={args.routing}/{args.router_selector}, "
         f"similarity_top_k={args.similarity_top_k}, rerank_top_n={args.rerank_top_n}, "
-        f"rerank_batch_size={args.rerank_batch_size}, num_predict={args.num_predict})"
+        f"rerank_batch_size={args.rerank_batch_size})"
     )
 
     if args.question:
         t0 = perf_counter()
         if args.routing == "off":
-            route_label, response = None, fact_engine.query(args.question)
+            route_label, response = "q&a", fact_engine.query(args.question)
         elif args.router_selector == "llm":
             route_label, response = None, router.query(args.question)
         else:
@@ -380,7 +354,7 @@ def main() -> int:
 
         t0 = perf_counter()
         if args.routing == "off":
-            route_label, response = None, fact_engine.query(question)
+            route_label, response = "q&a", fact_engine.query(question)
         elif args.router_selector == "llm":
             route_label, response = None, router.query(question)
         else:
