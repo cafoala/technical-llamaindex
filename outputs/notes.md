@@ -1,226 +1,284 @@
 # Presentation + Workshop Notes
 
-## Part 1: Presentation Talk Track (slides.md)
+## Part 1: Presentation Script (slides.md)
 
-### Slide 1: Chatting with Your Data
-This session is about taking a local language model, which is normally generic, and making it useful for a specific set of documents. Mention that there are two themes running through everything today: trust and control. Trust means we want answers grounded in evidence. Control means we want to decide where the model runs and what data it sees.
+### Slide 1: Chatting With Your Data
+Today I am going to show you how to make a local language model useful for your own documents instead of just general internet knowledge.
 
-Then introduce the stack in one sentence: Ollama runs local models, and LlamaIndex gives us the data workflow for retrieval and response generation. Close this slide by telling people they are going to see both the conceptual architecture and a practical notebook they can run themselves.
+The stack is simple: Ollama runs the models on google colab, and LlamaIndex handles retrieval and response orchestration.
 
-Transition line:
-"Before we build anything, let us anchor on the core problem we are trying to solve."
+By the end, you will see both the architecture and a notebook you can run and tune yourself.
 
-### Slide 2: The Why - The Knowledge Gap
-Base LLMs are frozen snapshots of the world. Even very good models can be confidently wrong when asked about recent events or internal documents they have never seen. Emphasize that this is not a bug in one model, it is a structural limitation of pretraining.
+Before we build anything, let me define RAG clearly in one sentence.
 
-At this point, highlight the practical risk: if teams treat fluent output as reliable output, mistakes appear quickly in analysis, reporting, and decisions. RAG exists to reduce that gap by injecting the right context at query time. RAG does not make the model omniscient, but it does make it far more accountable to provided evidence.
+### Slide 2: What RAG Is And Why It Exists
+Retrieval-Augmented Generation, or RAG, is a two-stage pattern:
+1. Retrieve evidence relevant to the question from your source documents.
+2. Generate an answer using that evidence as context.
 
-Transition line:
-"So if context matters, why not just paste everything into one huge prompt?"
+Without retrieval, an LLM answers from its pretraining memory, which can be outdated, incomplete, or wrong for your domain.
+
+With retrieval, the model is constrained by the evidence we provide at query time.
+That does not make it perfect, but it makes it auditable because we can inspect the retrieved chunks.
+
+This matters because fluent output is not the same as reliable output.
+
+So if context matters so much, why not put the entire document into one huge prompt every time?
 
 ### Slide 3: RAG vs Long Context
-Talk track:
-Start by acknowledging that long-context models are useful and often impressive. Then explain the tradeoff: long context is frequently expensive, slower, and can still degrade in quality when critical details are buried. Mention the "lost in the middle" effect in everyday terms: the model can miss key facts that are literally present in the prompt.
+Long-context prompting can work, but it has tradeoffs.
+It is slower, often more expensive, and quality can degrade when key details are buried in a lot of text.
 
-Now position RAG as a targeting strategy. Instead of sending everything, we send the best evidence for this question. This makes performance more stable, especially for smaller local models, and gives a clearer tuning surface for engineering teams.
+You can think of RAG as targeted context delivery.
+Instead of sending everything, we send the most relevant passages for this specific query.
 
-Transition line:
-"If RAG is a targeting strategy, here is the full pipeline from raw files to grounded answers."
+That gives us three practical benefits:
+1. Lower token usage and better latency.
+2. More stable answers for smaller local models.
+3. A clear tuning surface: chunking, retrieval depth, reranking, and prompts.
 
-### Slide 4: The 5 Steps of RAG
-Talk track:
-Walk through the five steps slowly and tie each one to a concrete mental model. Load means getting your source into the system. Chunk means choosing useful passage boundaries. Embed means turning text into comparable vectors. Retrieve means finding likely evidence. Generate means writing the final answer from question plus context.
+Here is the full pipeline we will implement.
 
-Emphasize that most real-world quality issues are not in the final generation step. They are usually in chunking and retrieval configuration. This helps people understand why the workshop spends time on retrieval behavior and reranking.
+### Slide 4: The 5 Steps Of RAG (Technical View)
+Step 1, Load: ingest raw source files into document objects.
 
-Transition line:
-"To understand retrieval, we need one concept that sounds abstract but is actually very practical: embeddings."
+Step 2, Chunk: split documents into overlapping passages. Chunk size and overlap are quality-critical because retrieval only sees chunks, not whole documents.
+
+Step 3, Embed: convert each chunk into a dense vector, then store vectors in an index.
+
+Step 4, Retrieve: embed the user query, run similarity search, and fetch top-k candidate chunks.
+
+Step 5, Generate: send question plus retrieved chunks to the LLM to synthesize an answer.
+
+Most production quality issues are in steps 2 to 4, not step 5.
+Bad chunk boundaries, weak embeddings, or poor retrieval depth will cap quality before generation even starts.
+
+Let me briefly zoom in on embeddings, because retrieval depends on them.
 
 ### Slide 5: Vector Embeddings
-Talk track:
-Describe embeddings as coordinates for meaning, not words. If two passages are about similar ideas, their vectors should be near each other. That allows semantic search: we can retrieve conceptually related passages even when wording differs.
+An embedding is a numerical representation of meaning.
+Chunks about similar concepts end up near each other in vector space, even if they do not share exact words.
 
-You can use a short analogy: keyword search asks "does this exact phrase appear," while vector search asks "does this passage mean something close to my question." Remind the audience that embedding quality strongly influences retrieval quality.
+Keyword search asks, "Do these words appear?"
+Vector search asks, "Is the meaning semantically close?"
 
-Transition line:
-"Now that the concepts are in place, let us ground this in the exact tools we are using."
+In this workshop we use `nomic-embed-text` through Ollama.
+For each chunk, we store its vector and metadata.
+At query time, we embed the question with the same model and compare vectors.
 
-### Slide 6: Our Tech Stack
-Talk track:
-Explain why this stack is practical for workshops and teams. Ollama keeps execution local, which is useful for privacy, reproducibility, and low-friction experimentation. LlamaIndex provides high-level building blocks so we can focus on behavior and tuning rather than low-level plumbing.
+If your embedding model is weak for your domain language, retrieval quality drops immediately.
 
-Also note that this stack is portable. The same conceptual workflow can be moved to different models or deployment environments later. What the audience is learning today is a reusable pattern, not a one-off demo.
+### Slide 6: Ollama + LlamaIndex In A Bit More Detail
+Ollama gives us a local model runtime and local model registry.
+In this notebook, it serves both:
+1. `llama3.2:3b` for answer generation.
+2. `nomic-embed-text` for embeddings.
 
-Transition line:
-"Let us map this directly onto the notebook you will run."
+LlamaIndex is the orchestration layer.
+It provides:
+1. `Settings` for global model and chunking defaults.
+2. Readers and indices (`SimpleDirectoryReader`, `VectorStoreIndex`, `SummaryIndex`).
+3. Query engines for retrieval + synthesis.
+4. Postprocessors like rerankers.
+5. Routers that choose tools based on query intent.
+
+So Ollama is runtime, LlamaIndex is pipeline.
 
 ### Slide 7: Workshop Flow
-Talk track:
-Read the flow as a narrative journey. Section 1 gets the runtime ready. Section 2 gives us a stable source document. Section 3 demonstrates the no-RAG failure and RAG improvement. Section 4 improves retrieval quality with reranking. Section 5 introduces routing so different query intents can use different tools.
+We will run this as a progressive build:
+1. Set up Ollama in Colab and verify inference.
+2. Download a fixed source file so everyone has identical data.
+3. Compare no-RAG failure against RAG behavior.
+4. Add reranking to improve evidence precision.
+5. Add routing to choose different tools for different intents.
 
-Set expectations that this is intentionally progressive. Each section builds state used by later cells. Encourage participants to run in order first, then revisit tuning cells after a full successful pass.
-
-Transition line:
-"Great, now we switch from concept mode to hands-on mode."
+Run cells in order first.
+After a clean pass, we will tune parameters and observe behavior changes.
 
 ### Slide 8: Workshop Time
-Talk track:
-Ask everyone to open technical_intro_to_rag.ipynb. If needed, pause briefly so the room can catch up. Explain that the first pass is purely operational: run cells in sequence and verify checkpoints. The second pass is exploratory: change parameters and observe behavior.
+Open [technical_intro_to_rag.ipynb](technical_intro_to_rag.ipynb).
 
-Give one practical warning for Colab users: runtime resets are normal, so setup and source download may need to be rerun. Framing this early prevents frustration later.
+First pass: run end-to-end without changing anything.
+Second pass: change one parameter at a time and inspect source nodes.
 
-Transition line:
-"Once the basic loop works, we can improve answer quality by improving evidence quality."
+If you are in Colab, runtime resets are normal.
+When that happens, rerun setup and data download before debugging later sections.
+
+Once the basic loop works, we can improve answer quality by improving evidence quality.
 
 ### Slide 9: Reranking Deep Dive
-Talk track:
-Explain the baseline problem clearly: nearest-neighbor retrieval can include passages that are semantically close but not truly best for the specific question. Reranking acts as a second-stage judge that evaluates candidate passages with tighter relevance scoring.
+Nearest-neighbor retrieval gives us a candidate set.
+Some chunks will be relevant, some only loosely related.
 
-Stress the engineering point: reranking is often a quality lever that is easier to tune than changing the base model. In this workshop we retrieve broadly, then keep a smaller, cleaner set before synthesis.
+Reranking is a second-stage relevance pass over those candidates.
+In this notebook we use `LLMRerank`, so yes, the reranker is LLM-based.
 
-Transition line:
-"Quality is not only about better ranking, it is also about choosing the right tool for the question."
+Mechanically, the flow is:
+1. Retrieve top-k candidates by vector similarity (`similarity_top_k`).
+2. Ask the reranker to score or choose the strongest chunks.
+3. Keep only top-n (`top_n`) before final synthesis.
+
+So reranking trades extra compute for better evidence quality.
+In practice, that often improves factual precision more than swapping to a bigger base model.
 
 ### Slide 10: Routing Deep Dive
-Talk track:
-Introduce routing as policy-driven tool selection. Some prompts ask for a precise fact, others ask for a broad summary. A single retrieval strategy is not always optimal for both. RouterQueryEngine lets the model choose between tools based on intent.
+Not every question wants the same tool.
+A narrow fact question benefits from vector retrieval.
+A broad overview question can benefit from summary-style querying.
 
-Position this as a gentle entry into agentic behavior. You are not building a complex autonomous agent here, but you are introducing one key ingredient: dynamic decision-making over available tools.
+`RouterQueryEngine` handles this by using a selector model and tool descriptions.
 
-Transition line:
-"Before we close, let us be realistic about where this approach can still fail."
+Mechanically, the flow is:
+1. Define multiple query tools, each with a clear description.
+2. The selector (`LLMSingleSelector`) reads the user query.
+3. It picks one tool based on intent and the descriptions.
+4. The chosen tool executes and returns the answer.
 
-### Slide 11: Limitations and Reality Check
-Talk track:
-Reinforce that RAG is not magic. If facts are absent from the source, the system cannot retrieve them. If chunking is poor, retrieval can drift. If hardware is constrained, latency will be visible. This makes evaluation and iteration part of the workflow, not optional extras.
+This is a lightweight agent pattern: model-mediated tool choice with explicit policy in tool descriptions.
 
-It helps to say this explicitly so participants leave with a practical mindset: build, measure, tune, repeat.
+### Slide 11: Should Embeddings Stay One Slide? Should 5 Steps Be Split?
+For this audience, I recommend keeping one dedicated embeddings slide.
+Embeddings are the core abstraction that makes retrieval work, and people usually need one focused minute on that idea.
 
-Transition line:
-"So what should people take away and do next after today?"
+For the 5 steps, I would not split into five separate slides unless the audience is highly technical and you have extra time.
 
-### Slide 12: Summary and Next Steps
-Talk track:
-Summarize in three points. First, RAG improves grounding and reduces confident errors for domain questions. Second, local execution can improve privacy and cost control. Third, quality comes from tuning choices such as chunk size, overlap, top-k, reranker top-n, and prompt design.
+A good compromise is:
+1. Keep the single 5-step overview slide.
+2. Add one extra technical slide that shows the runtime flow:
+load/chunk/index once, then retrieve/rerank/generate per query.
 
-End with an action-oriented invitation: ask each participant to choose one parameter to change and one hypothesis to test. This turns the session into a repeatable experimentation habit rather than a one-time demo.
+That gives depth without slowing pacing.
+
+### Slide 12: Limitations, Summary, And Next Steps
+RAG is not magic.
+If the fact is not in the source, retrieval cannot find it.
+If chunking is poor, retrieval drifts.
+If hardware is limited, latency increases.
+
+The right mindset is iterative engineering: build, measure, tune, repeat.
+
+Three takeaways:
+1. RAG improves grounding by tying answers to retrievable evidence.
+2. Local execution with Ollama can improve privacy and cost control.
+3. Quality comes from tuning chunking, retrieval depth, reranking, routing, and prompts.
+
+Your action after this session: pick one parameter, state a hypothesis, and verify it by inspecting source nodes.
 
 ## Part 2: Workshop Facilitation Script (technical_intro_to_rag.ipynb)
 
 ## Section 1: Setup Ollama In Colab
-Goal:
-- Bring every participant to a known-good starting point before any RAG logic.
+We start by creating a known-good runtime before touching any RAG logic.
 
-Long-form facilitation script:
-Start by telling the room this section is about removing uncertainty. Everyone should install dependencies, install Ollama in Colab, start the service, pull models, and run a smoke test. Explain that if this section is unstable, everything downstream becomes noisy and hard to diagnose.
+First we install Python dependencies with `%pip install` so the notebook has LlamaIndex, Ollama integrations, and helper libraries.
 
-When running the model pull cell, prepare participants for waiting time. Say that this is expected on first run and usually faster on repeat within the same runtime. During smoke test output, remind them that you are not evaluating answer quality yet. You are only verifying that inference works.
+Then we install the Ollama binary in Colab.
+That gives us the local model runtime process inside the notebook environment.
 
-What to watch for:
-- Ollama service reachable at 127.0.0.1:11434.
-- Required models available.
-- Smoke test returns normal text output.
+Next we start the Ollama service on `127.0.0.1:11434`.
+The cell checks whether the API is already up, starts `ollama serve` if needed, and polls the tags endpoint until reachable.
 
-Recovery lines:
-- "If this fails, do not debug later cells yet. Stay here and fix setup first."
-- "In Colab, runtime resets are common. Re-running setup is normal, not a mistake."
+After that we pull two models:
+1. `llama3.2:3b` for generation.
+2. `nomic-embed-text` for embedding.
+
+Then we run a smoke test with `ollama run` to confirm inference works.
+At this point we are only testing runtime health, not answer quality.
+
+Checkpoint I want to see:
+1. Ollama API reachable.
+2. Models appear in `ollama list`.
+3. Smoke test returns normal text.
+
+If setup fails, we stop here and fix it first.
 
 ## Section 2: Download Source Data
-Goal:
-- Produce data/new_species_2024.txt from the shared Drive source and verify it exists.
+Now we create the source file the whole workshop will use: `data/new_species_2024.txt`.
 
-Long-form facilitation script:
-Explain that this workshop intentionally uses a fixed source file so everyone retrieves against the same content. That gives cleaner discussion when comparing outputs across participants. Mention that a fixed source also avoids live scraping failures and page structure changes during teaching.
+The download cell pulls text from a fixed Google Drive URL, validates a successful response, and writes to disk.
 
-After running the cell, ask participants to check the printed path and character count. Briefly show the first few lines of output preview and connect this to the later retrieval steps: "This text is the entire knowledge base your RAG pipeline can use."
+Using one fixed source means everyone has the same retrieval corpus, which makes comparisons meaningful across the room.
 
-What to watch for:
-- Saved file path is correct.
-- Output is non-empty.
-- Source URL printed is the Drive download URL.
+After this cell, I check three things:
+1. The saved path is correct.
+2. Character count is non-zero.
+3. The preview text looks valid.
 
-Recovery lines:
-- "If this cell fails, rerun it before touching retrieval cells."
-- "No source file means no index, and no index means no RAG."
+No source file means no index, and no index means no RAG.
 
 ## Section 3: Intro To RAG
-Goal:
-- Demonstrate the baseline failure and then the RAG improvement with evidence inspection.
+This section is the core learning loop.
 
-Long-form facilitation script:
-This is the teaching core. First run the no-RAG question. Ask participants to observe not just whether it is wrong, but how it sounds wrong. Often it will be plausible, fluent, and unsupported. That is the key behavior to notice.
+We first configure LlamaIndex settings:
+1. `Settings.llm = Ollama(...)` sets the generation model.
+2. `Settings.embed_model = OllamaEmbedding(...)` sets semantic encoding.
+3. `Settings.chunk_size` and `Settings.chunk_overlap` control chunk boundaries.
 
-Next run model configuration and index creation. As you do this, narrate what each object represents: Settings for global behavior, vector index for document chunks, and query engine for retrieval plus synthesis. Then ask the same question again and compare output tone, specificity, and factual grounding.
+Then we intentionally run a no-RAG query with `Settings.llm.complete(prompt)`.
+This shows the baseline failure mode: fluent output without guaranteed grounding.
 
-Finally, run the source-node inspection cell. Tell participants this is where trust is built. They can inspect the retrieved evidence directly and validate whether the answer is justified.
+Next we build the retrieval pipeline:
+1. `SimpleDirectoryReader` loads the text file into document objects.
+2. `VectorStoreIndex.from_documents(...)` chunks and embeds documents, then builds the vector index.
+3. `as_query_engine(similarity_top_k=3)` creates a query engine that retrieves top-k chunks and synthesizes an answer.
 
-What to watch for:
-- Clear contrast between no-RAG and RAG responses.
-- Retrieved chunks that visibly support answer claims.
-- Participants can explain why the RAG answer is more trustworthy.
+We ask the same question again with `vector_query_engine.query(prompt)` and compare outputs.
 
-Recovery lines:
-- "If the RAG answer looks weak, inspect source nodes first before changing models."
-- "Most fixes start in retrieval settings, not in prompt wording."
+Then we inspect `rag_response.source_nodes` so we can verify whether the answer is supported by retrieved evidence.
+
+The key point here is trust through inspectability.
 
 ## Section 4: Advanced Retrieval (Reranking)
-Goal:
-- Show how reranking can improve relevance of final evidence passed to the model.
+Now we improve retrieval quality.
 
-Long-form facilitation script:
-Start by framing baseline retrieval as a broad net. It often catches useful passages and some noisy ones. Then introduce reranking as a second-stage filter that revisits candidate chunks and keeps the strongest matches.
+First we run baseline retrieval:
+`baseline_engine = index.as_query_engine(similarity_top_k=8)`.
 
-Run baseline and reranked outputs, then compare source-node lists side by side. Encourage participants to comment on relevance, not just score values. Ask: "Which set of chunks would you trust more if this answer were going into a report?"
+Then we add LLM reranking:
+1. `LLMRerank(choice_batch_size=4, top_n=3)` creates a reranker.
+2. We retrieve broadly with `similarity_top_k=12`.
+3. `node_postprocessors=[reranker]` filters candidates down to the best `top_n` chunks.
 
-Connect this to practice: reranking is often a high-impact improvement when answers feel close but inconsistent.
+So yes, in this notebook reranking uses another LLM call as a relevance judge over candidate chunks.
 
-What to watch for:
-- Reranked context appears tighter and less off-topic.
-- Participants can articulate why selected chunks are better.
+We compare baseline and reranked source nodes side by side.
+I focus the group on relevance and claim support, not just numeric scores.
 
-Recovery lines:
-- "If reranking seems worse, adjust top-k and top-n before concluding it does not help."
-- "Always compare source nodes, not just final prose."
+If reranking underperforms, I tune `similarity_top_k` and `top_n` before making conclusions.
 
 ## Section 5: Intent Routing
-Goal:
-- Demonstrate dynamic tool selection based on prompt intent.
+Now we add dynamic tool selection.
 
-Long-form facilitation script:
-Introduce routing with a simple distinction: fact lookup versus broad summary. Explain that one query engine is tuned for specific retrieval while another is tuned for whole-document summarization behavior. The router selects between them at runtime.
+We build two tools:
+1. A vector tool for specific factual lookup.
+2. A summary tool backed by `SummaryIndex` for broader synthesis.
 
-Run the two test prompts and read the selection metadata aloud. This is useful because participants can see not only the answer but the decision pathway behind the answer. Then invite custom prompts and ask participants to predict which tool will be selected before execution.
+Each tool has a description.
+Those descriptions are not documentation only; they are routing policy because the selector reads them when deciding.
 
-Position this as a bridge to agent patterns: multiple tools, explicit descriptions, model-mediated selection.
+`RouterQueryEngine` is configured with:
+1. `LLMSingleSelector` to choose one tool.
+2. A list of `QueryEngineTool` objects.
 
-What to watch for:
-- Summary prompt routes to summary-oriented tool.
-- Fact prompt routes to vector-oriented tool.
-- Participants understand that tool descriptions influence routing behavior.
+At query time, the selector predicts intent, picks a tool, and only that tool executes.
 
-Recovery lines:
-- "If routing looks odd, tighten tool descriptions so intent boundaries are clearer."
-- "Treat routing as a policy prompt problem as much as a retrieval problem."
+When we test with one summary prompt and one fact prompt, we print `response.metadata["selector_result"]` so everyone can see the decision path, not just the final answer.
 
-## Suggested Exercises For The End Of Workshop
-Use this block if you have extra time or want a take-home challenge:
+This is the first agent-like pattern in the notebook: model chooses among tools under explicit policy.
 
-- Change similarity_top_k and describe how evidence diversity changes.
-- Change reranker top_n and observe precision versus coverage.
-- Change chunk size and overlap, then compare source-node quality.
-- Ask one multi-part question and inspect whether routing still chooses the right tool.
-- Ask one deliberately ambiguous question and discuss routing uncertainty.
+## Suggested End-Of-Workshop Exercises
+1. Change `similarity_top_k` and observe recall vs noise.
+2. Change reranker `top_n` and observe precision vs coverage.
+3. Change chunk size and overlap, then inspect source-node quality.
+4. Try multi-part and ambiguous prompts and inspect routing behavior.
 
-Facilitator prompt:
-"Pick one parameter, state your hypothesis before running, then check whether the source nodes support your conclusion."
+Exercise rule:
+Pick one parameter, state your hypothesis before running, then verify against source nodes.
 
 ## Troubleshooting Script
-Use these lines exactly when people get stuck:
+1. If model calls fail, rerun service startup and model pull cells.
+2. If source file is missing, rerun Section 2 download cell.
+3. If outputs look inconsistent, rerun from Section 3.1 to reset settings and rebuild index.
+4. If Colab runtime reset occurs, rerun Sections 1 and 2 first.
 
-- If model calls fail, rerun setup cells for service startup and model pull.
-- If source file is missing, rerun the Section 2 download cell.
-- If responses look inconsistent, rerun from Section 3.1 to reset settings and rebuild index.
-- If Colab runtime reset happened, rerun Sections 1 and 2 first.
-
-Closing troubleshooting message:
-"Do not debug five variables at once. Re-establish baseline state, then change one thing at a time."
+Closing line:
+Do not debug five variables at once. Re-establish baseline state, then change one thing at a time.

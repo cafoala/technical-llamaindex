@@ -54,7 +54,6 @@ Many models now have massive context windows (128k+ tokens). Why not just paste 
 4. **Retrieve:** Find the "Top K" chunks mathematically closest to the user's query.
 5. **Generate:** Send the query + chunks to the LLM for the final answer.
 
-![w:1000](images/rag_architecture.png)
 
 ---
 
@@ -66,7 +65,7 @@ An LLM doesn't see "Piranha" and "Fish" as words; it sees them as coordinates in
 - **Semantic Space:** In this "map" of meaning, "Piranha" is physically close to "Amazon River" but far away from "Desktop Computer."
 - **Search by Meaning:** When you ask a question, we don't look for matching *keywords*; we look for the closest *coordinates*.
 
-![w:900](images/vector_embeddings.png)
+
 ---
 
 # Our Tech Stack
