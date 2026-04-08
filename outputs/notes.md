@@ -60,18 +60,23 @@ Bad chunk boundaries, weak embeddings, or poor retrieval depth will cap quality 
 
 Let me briefly zoom in on embeddings, because retrieval depends on them.
 
-### Slide 5: Vector Embeddings
+### Slide 5: Embeddings and Retrieval
 An embedding is a numerical representation of meaning.
 Chunks about similar concepts end up near each other in vector space, even if they do not share exact words.
 
+Retrieval works as a sequence:
+1. Embed each chunk from the source corpus.
+2. Store vectors in an index.
+3. Embed the user query with the same embedding model.
+4. Compute similarity between query vector and chunk vectors.
+5. Return top-k nearest chunks as candidate evidence.
+
 Keyword search asks, "Do these words appear?"
-Vector search asks, "Is the meaning semantically close?"
+Vector retrieval asks, "Is this chunk semantically close to the question?"
 
 In this workshop we use `nomic-embed-text` through Ollama.
-For each chunk, we store its vector and metadata.
-At query time, we embed the question with the same model and compare vectors.
-
-If your embedding model is weak for your domain language, retrieval quality drops immediately.
+If the embedding model is weak for your domain language, retrieval quality drops immediately.
+And if retrieval quality drops, generation quality drops with it.
 
 ### Slide 6: Ollama + LlamaIndex In A Bit More Detail
 Ollama gives us a local model runtime and local model registry.
@@ -110,38 +115,6 @@ If you are in Colab, runtime resets are normal.
 When that happens, rerun setup and data download before debugging later sections.
 
 Once the basic loop works, we can improve answer quality by improving evidence quality.
-
-
-### Slide 10: Routing Deep Dive
-Not every question wants the same tool.
-A narrow fact question benefits from vector retrieval.
-A broad overview question can benefit from summary-style querying.
-
-`RouterQueryEngine` handles this by using a selector model and tool descriptions.
-
-Mechanically, the flow is:
-1. Define multiple query tools, each with a clear description.
-2. The selector (`LLMSingleSelector`) reads the user query.
-3. It picks one tool based on intent and the descriptions.
-4. The chosen tool executes and returns the answer.
-
-This is a lightweight agent pattern: model-mediated tool choice with explicit policy in tool descriptions.
-
-
-### Slide 12: Limitations, Summary, And Next Steps
-RAG is not magic.
-If the fact is not in the source, retrieval cannot find it.
-If chunking is poor, retrieval drifts.
-If hardware is limited, latency increases.
-
-The right mindset is iterative engineering: build, measure, tune, repeat.
-
-Three takeaways:
-1. RAG improves grounding by tying answers to retrievable evidence.
-2. Local execution with Ollama can improve privacy and cost control.
-3. Quality comes from tuning chunking, retrieval depth, reranking, routing, and prompts.
-
-Your action after this session: pick one parameter, state a hypothesis, and verify it by inspecting source nodes.
 
 ## Part 2: Workshop Facilitation Script (technical_intro_to_rag.ipynb)
 
@@ -242,6 +215,21 @@ I focus the group on relevance and claim support, not just numeric scores.
 
 If reranking underperforms, I tune `similarity_top_k` and `top_n` before making conclusions.
 
+### Slide 10: Routing Deep Dive
+Not every question wants the same tool.
+A narrow fact question benefits from vector retrieval.
+A broad overview question can benefit from summary-style querying.
+
+`RouterQueryEngine` handles this by using a selector model and tool descriptions.
+
+Mechanically, the flow is:
+1. Define multiple query tools, each with a clear description.
+2. The selector (`LLMSingleSelector`) reads the user query.
+3. It picks one tool based on intent and the descriptions.
+4. The chosen tool executes and returns the answer.
+
+This is a lightweight agent pattern: model-mediated tool choice with explicit policy in tool descriptions.
+
 ## Section 5: Intent Routing
 Now we add dynamic tool selection.
 
@@ -279,3 +267,29 @@ Pick one parameter, state your hypothesis before running, then verify against so
 
 Closing line:
 Do not debug five variables at once. Re-establish baseline state, then change one thing at a time.
+
+### Slide 11: Slide Design Choice - Keep Embeddings Separate?
+For this audience, keeping embeddings as its own slide is useful.
+Embeddings are the core mechanism behind retrieval, and people usually need one focused minute on that concept before reranking and routing make sense.
+
+For the 5 steps, I would keep one overview slide rather than splitting into five separate slides.
+If you want a bit more technical depth, add one extra flow slide showing:
+1. One-time pipeline work: load, chunk, embed, index.
+2. Per-query work: embed query, retrieve top-k, optional rerank, generate.
+
+That gives technical clarity without slowing the pacing.
+
+### Slide 12: Limitations, Summary, And Next Steps
+RAG is not magic.
+If the fact is not in the source, retrieval cannot find it.
+If chunking is poor, retrieval drifts.
+If hardware is limited, latency increases.
+
+The right mindset is iterative engineering: build, measure, tune, repeat.
+
+Three takeaways:
+1. RAG improves grounding by tying answers to retrievable evidence.
+2. Local execution with Ollama can improve privacy and cost control.
+3. Quality comes from tuning chunking, retrieval depth, reranking, routing, and prompts.
+
+Your action after this session: pick one parameter, state a hypothesis, and verify it by inspecting source nodes.

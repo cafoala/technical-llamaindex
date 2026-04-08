@@ -43,10 +43,6 @@ There are three common options for domain performance: long context, fine-tuning
 2. **Fine-Tuning:** Also valid, but usually highest effort and cost (data curation, training runs, eval, versioning, retraining).
 3. **RAG:** Usually best first step for changing factual content: retrieve top evidence at query time and ground the answer.
 
-**Rule of thumb**
-- Need up-to-date factual grounding: start with **RAG**.
-- Need stable style/behavior changes: consider **Fine-Tuning**.
-- Need one-off broad context: **Long Context** can be enough.
 
 ---
 
@@ -61,13 +57,15 @@ There are three common options for domain performance: long context, fine-tuning
 
 ---
 
-# What are Vector Embeddings?
+# Embeddings and Retrieval
 
-An LLM doesn't see "Piranha" and "Fish" as words; it sees them as coordinates in a multi-dimensional space.
+An LLM does not search raw words first; it searches meaning in vector space.
 
-- **The Vector:** A list of numbers (e.g., `[0.12, -0.59, 0.88...]`) representing the *meaning* of a text.
-- **Semantic Space:** In this "map" of meaning, "Piranha" is physically close to "Amazon River" but far away from "Desktop Computer."
-- **Search by Meaning:** When you ask a question, we don't look for matching *keywords*; we look for the closest *coordinates*.
+- **Embedding:** Convert each chunk into a vector (a list of numbers) that captures meaning.
+- **Same Encoder Rule:** We embed chunks and queries with the same embedding model.
+- **Similarity Search:** At query time, we compute distances (or cosine similarity) between the query vector and chunk vectors.
+- **Top-K Retrieval:** We return the closest K chunks as candidate evidence.
+
 
 
 ---
