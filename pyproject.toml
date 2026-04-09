@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "technical-llamaindex"
+version = "0.1.0"
+description = "Technical workshop for the RSA group on LlamaIndex"
+authors = []
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.10"
+llama-index = "^0.13"
+openai = "^1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
